@@ -58,7 +58,6 @@ func (exporter *desktopExporter) Start(ctx context.Context, host component.Host)
 		} else if err != nil {
 			fmt.Printf("error listening for server: %s\n", err)
 		}
-
 	}()
 	return nil
 }

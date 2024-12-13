@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 
 	"github.com/CtrlSpice/otel-desktop-viewer/desktopexporter/internal/telemetry"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupEmpty() (*httptest.Server, func()) {
@@ -54,7 +54,7 @@ func setupWithTrace(t *testing.T) (*httptest.Server, func(*testing.T)) {
 	}
 
 	err := server.Store.AddSpans(context.Background(), []telemetry.SpanData{testSpanData})
-	assert.Nilf(t, err, "could not create  test span: %v", err)
+	require.NoError(t, err, "could not create test span")
 
 	testServer := httptest.NewServer(server.Handler(false))
 
@@ -69,14 +69,14 @@ func TestTracesHandler(t *testing.T) {
 		testServer, teardown := setupEmpty()
 		defer teardown()
 
-		res, err := http.Get(fmt.Sprintf("%s%s", testServer.URL, "/api/traces"))
-		assert.Nilf(t, err, "could not send GET request %v", err)
+		res, err := http.Get(testServer.URL + "/api/traces")
+		require.NoError(t, err, "could not send GET request")
 		defer res.Body.Close()
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		b, err := io.ReadAll(res.Body)
-		assert.Nilf(t, err, "could not read response body: %v", err)
+		require.NoError(t, err, "could not read response body")
 
 		// Init summaries struct with some data to be overwritten
 		testSummaries := telemetry.TraceSummaries{
@@ -93,7 +93,7 @@ func TestTracesHandler(t *testing.T) {
 			},
 		}
 		err = json.Unmarshal(b, &testSummaries)
-		assert.Nilf(t, err, "could not unmarshal bytes to trace summaries: %v", err)
+		require.NoError(t, err, "could not unmarshal bytes to trace summaries")
 
 		assert.Len(t, testSummaries.TraceSummaries, 0)
 	})
@@ -102,18 +102,18 @@ func TestTracesHandler(t *testing.T) {
 		testServer, teardown := setupWithTrace(t)
 		defer teardown(t)
 
-		res, err := http.Get(fmt.Sprintf("%s%s", testServer.URL, "/api/traces"))
-		assert.Nilf(t, err, "could not send GET request: %v", err)
+		res, err := http.Get(testServer.URL + "/api/traces")
+		require.NoError(t, err, "could not send GET request")
 		defer res.Body.Close()
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		b, err := io.ReadAll(res.Body)
-		assert.Nilf(t, err, "could not read response body: %v", err)
+		require.NoError(t, err, "could not read response body")
 
 		testSummaries := telemetry.TraceSummaries{}
 		err = json.Unmarshal(b, &testSummaries)
-		assert.Nilf(t, err, "could not unmarshal bytes to trace summaries: %v", err)
+		require.NoError(t, err, "could not unmarshal bytes to trace summaries")
 
 		assert.Equal(t, "1234567890", testSummaries.TraceSummaries[0].TraceID)
 		assert.Equal(t, true, testSummaries.TraceSummaries[0].HasRootSpan)
@@ -128,26 +128,26 @@ func TestTraceIDHandler(t *testing.T) {
 	defer teardown(t)
 
 	t.Run("Trace ID Handler (Not Found)", func(t *testing.T) {
-		res, err := http.Get(fmt.Sprintf("%s%s", testServer.URL, "/api/traces/987654321"))
-		assert.Nilf(t, err, "could not send GET request: %v", err)
+		res, err := http.Get(testServer.URL + "/api/traces/987654321")
+		require.NoError(t, err, "could not send GET request")
 		defer res.Body.Close()
 
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 
 	t.Run("Traces ID Handler (ID Found)", func(t *testing.T) {
-		res, err := http.Get(fmt.Sprintf("%s%s", testServer.URL, "/api/traces/1234567890"))
-		assert.Nilf(t, err, "could not send GET request: %v", err)
+		res, err := http.Get(testServer.URL + "/api/traces/1234567890")
+		require.NoError(t, err, "could not send GET request")
 		defer res.Body.Close()
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		b, err := io.ReadAll(res.Body)
-		assert.Nilf(t, err, "could not read response body: %v", err)
+		require.NoError(t, err, "could not read response body")
 
 		testTrace := telemetry.TraceData{}
 		err = json.Unmarshal(b, &testTrace)
-		assert.Nilf(t, err, "could not unmarshal bytes to trace data: %v", err)
+		require.NoError(t, err, "could not unmarshal bytes to trace data")
 
 		assert.Equal(t, "1234567890", testTrace.TraceID)
 		assert.Equal(t, "12345", testTrace.Spans[0].SpanID)
@@ -162,24 +162,24 @@ func TestClearTracesHandler(t *testing.T) {
 	defer teardown(t)
 
 	// Clear dat data
-	res, err := http.Get(fmt.Sprintf("%s%s", testServer.URL, "/api/clearData"))
-	assert.Nilf(t, err, "could not send GET request: %v", err)
+	res, err := http.Get(testServer.URL + "/api/clearData")
+	require.NoError(t, err, "could not send GET request")
 	defer res.Body.Close()
 
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Get trace summaries
-	res, err = http.Get(fmt.Sprintf("%s%s", testServer.URL, "/api/traces"))
-	assert.Nilf(t, err, "could not send GET request: %v", err)
+	res, err = http.Get(testServer.URL + "/api/traces")
+	require.NoError(t, err, "could not send GET request")
 
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	b, err := io.ReadAll(res.Body)
-	assert.Nilf(t, err, "could not read response body: %v", err)
+	require.NoError(t, err, "could not read response body")
 
 	testSummaries := telemetry.TraceSummaries{}
 	err = json.Unmarshal(b, &testSummaries)
-	assert.Nilf(t, err, "could not unmarshal bytes to trace summaries: %v", err)
+	require.NoError(t, err, "could not unmarshal bytes to trace summaries")
 
 	// Check that there are no traces in store
 	assert.Len(t, testSummaries.TraceSummaries, 0)
@@ -190,25 +190,25 @@ func TestSampleHandler(t *testing.T) {
 	defer teardown()
 
 	// Populate sample data
-	res, err := http.Get(fmt.Sprintf("%s%s", testServer.URL, "/api/sampleData"))
-	assert.Nilf(t, err, "could not send GET request: %v", err)
+	res, err := http.Get(testServer.URL + "/api/sampleData")
+	require.NoError(t, err, "could not send GET request")
 	defer res.Body.Close()
 
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	t.Run("Sample Data Handler (Traces)", func(t *testing.T) {
-		res, err := http.Get(fmt.Sprintf("%s%s", testServer.URL, "/api/traces/42957c7c2fca940a0d32a0cdd38c06a4"))
-		assert.Nilf(t, err, "could not send GET request: %v", err)
+		res, err := http.Get(testServer.URL + "/api/traces/42957c7c2fca940a0d32a0cdd38c06a4")
+		require.NoError(t, err, "could not send GET request")
 		defer res.Body.Close()
 
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		b, err := io.ReadAll(res.Body)
-		assert.Nilf(t, err, "could not read response body: %v", err)
+		require.NoError(t, err, "could not read response body")
 
 		testTrace := telemetry.TraceData{}
 		err = json.Unmarshal(b, &testTrace)
-		assert.Nilf(t, err, "could not unmarshal bytes to trace data: %v", err)
+		require.NoError(t, err, "could not unmarshal bytes to trace data")
 
 		assert.Equal(t, "42957c7c2fca940a0d32a0cdd38c06a4", testTrace.TraceID)
 		assert.Equal(t, "37fd1349bf83d330", testTrace.Spans[0].SpanID)
